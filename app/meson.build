@@ -57,6 +57,7 @@ src = [
     'src/util/process.c',
     'src/util/process_intr.c',
     'src/util/rand.c',
+    'src/util/sdl.c',
     'src/util/strbuf.c',
     'src/util/str.c',
     'src/util/term.c',
@@ -117,7 +118,7 @@ dependencies = [
     dependency('libavcodec', version: '>= 57.37', static: static),
     dependency('libavutil', static: static),
     dependency('libswresample', static: static),
-    dependency('sdl2', version: '>= 2.0.5', static: static),
+    dependency('sdl3', version: '>= 3.2.0', static: static),
 ]
 
 if v4l2_support
