@@ -327,6 +327,7 @@ struct scrcpy_options {
     const char *start_app;
     bool vd_destroy_content;
     bool vd_system_decorations;
+    bool camera_torch;
 };
 
 extern const struct scrcpy_options scrcpy_options_default;

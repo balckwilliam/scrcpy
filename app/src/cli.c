@@ -114,6 +114,7 @@ enum {
     OPT_NO_VD_SYSTEM_DECORATIONS,
     OPT_NO_VD_DESTROY_CONTENT,
     OPT_DISPLAY_IME_POLICY,
+    OPT_CAMERA_TORCH,
 };
 
 struct sc_option {
@@ -312,6 +313,11 @@ static const struct sc_option options[] = {
         .longopt = "camera-size",
         .argdesc = "<width>x<height>",
         .text = "Specify an explicit camera capture size.",
+    },
+    {
+        .longopt_id = OPT_CAMERA_TORCH,
+        .longopt = "camera-torch",
+        .text = "Turn on the camera torch when the camera starts.",
     },
     {
         .longopt_id = OPT_CAPTURE_ORIENTATION,
@@ -2779,6 +2785,9 @@ parse_args_with_getopt(struct scrcpy_cli_args *args, int argc, char *argv[],
                 break;
             case OPT_CAMERA_HIGH_SPEED:
                 opts->camera_high_speed = true;
+                break;
+            case OPT_CAMERA_TORCH:
+                opts->camera_torch = true;
                 break;
             case OPT_NO_WINDOW:
                 opts->window = false;
