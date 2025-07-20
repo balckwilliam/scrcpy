@@ -64,6 +64,7 @@ public class CameraCapture extends SurfaceCapture {
     private final Rect crop;
     private final Orientation captureOrientation;
     private final float angle;
+    private final boolean initialTorch;
 
     private String cameraId;
     private Size captureSize;
@@ -94,6 +95,7 @@ public class CameraCapture extends SurfaceCapture {
         this.captureOrientation = options.getCaptureOrientation();
         assert captureOrientation != null;
         this.angle = options.getAngle();
+        this.initialTorch = options.getCameraTorch();
     }
 
     @Override
@@ -290,6 +292,9 @@ public class CameraCapture extends SurfaceCapture {
 
                     if (fps > 0) {
                         requestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(fps, fps));
+                    }
+                    if (initialTorch) {
+                        requestBuilder.set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_TORCH);
                     }
 
                     CaptureRequest request = requestBuilder.build();
