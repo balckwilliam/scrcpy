@@ -1,5 +1,10 @@
 #include "sdl.h"
 
+#include <assert.h>
+#include <stdlib.h>
+
+#include "util/log.h"
+
 SDL_Window *
 sc_sdl_create_window(const char *title, int64_t x, int64_t y, int64_t width,
                      int64_t height, int64_t flags) {
@@ -36,7 +41,13 @@ struct sc_size
 sc_sdl_get_window_size(SDL_Window *window) {
     int width;
     int height;
-    SDL_GetWindowSize(window, &width, &height);
+    bool ok = SDL_GetWindowSize(window, &width, &height);
+    if (!ok) {
+        LOGE("Could not get window size: %s", SDL_GetError());
+        LOGE("Please report the error");
+        // fatal error
+        abort();
+    }
 
     struct sc_size size = {
         .width = width,
@@ -49,7 +60,13 @@ struct sc_size
 sc_sdl_get_window_size_in_pixels(SDL_Window *window) {
     int width;
     int height;
-    SDL_GetWindowSizeInPixels(window, &width, &height);
+    bool ok = SDL_GetWindowSizeInPixels(window, &width, &height);
+    if (!ok) {
+        LOGE("Could not get window size: %s", SDL_GetError());
+        LOGE("Please report the error");
+        // fatal error
+        abort();
+    }
 
     struct sc_size size = {
         .width = width,
@@ -60,14 +77,24 @@ sc_sdl_get_window_size_in_pixels(SDL_Window *window) {
 
 void
 sc_sdl_set_window_size(SDL_Window *window, struct sc_size size) {
-    SDL_SetWindowSize(window, size.width, size.height);
+    bool ok = SDL_SetWindowSize(window, size.width, size.height);
+    if (!ok) {
+        LOGE("Could not set window size: %s", SDL_GetError());
+        assert(!"unexpected");
+    }
 }
 
 struct sc_point
 sc_sdl_get_window_position(SDL_Window *window) {
     int x;
     int y;
-    SDL_GetWindowPosition(window, &x, &y);
+    bool ok = SDL_GetWindowPosition(window, &x, &y);
+    if (!ok) {
+        LOGE("Could not get window position: %s", SDL_GetError());
+        LOGE("Please report the error");
+        // fatal error
+        abort();
+    }
 
     struct sc_point point = {
         .x = x,
@@ -78,30 +105,54 @@ sc_sdl_get_window_position(SDL_Window *window) {
 
 void
 sc_sdl_set_window_position(SDL_Window *window, struct sc_point point) {
-    SDL_SetWindowPosition(window, point.x, point.y);
+    bool ok = SDL_SetWindowPosition(window, point.x, point.y);
+    if (!ok) {
+        LOGE("Could not set window position: %s", SDL_GetError());
+        assert(!"unexpected");
+    }
 }
 
 void
 sc_sdl_show_window(SDL_Window *window) {
-    SDL_ShowWindow(window);
+    bool ok = SDL_ShowWindow(window);
+    if (!ok) {
+        LOGE("Could not show window: %s", SDL_GetError());
+        assert(!"unexpected");
+    }
 }
 
 void
 sc_sdl_hide_window(SDL_Window *window) {
-    SDL_HideWindow(window);
+    bool ok = SDL_HideWindow(window);
+    if (!ok) {
+        LOGE("Could not hide window: %s", SDL_GetError());
+        assert(!"unexpected");
+    }
 }
 
 void
 sc_sdl_restore_window(SDL_Window *window) {
-    SDL_RestoreWindow(window);
+    bool ok = SDL_RestoreWindow(window);
+    if (!ok) {
+        LOGE("Could not restore window: %s", SDL_GetError());
+        assert(!"unexpected");
+    }
 }
 
 bool
 sc_sdl_render_clear(SDL_Renderer *renderer) {
-    return SDL_RenderClear(renderer);
+    bool ok = SDL_RenderClear(renderer);
+    if (!ok) {
+        LOGW("Could not clear rendering: %s", SDL_GetError());
+    }
+    return ok;
 }
 
 void
 sc_sdl_render_present(SDL_Renderer *renderer) {
-    SDL_RenderPresent(renderer);
+    bool ok = SDL_RenderPresent(renderer);
+    if (!ok) {
+        LOGE("Could not render: %s", SDL_GetError());
+        assert(!"unexpected");
+    }
 }
