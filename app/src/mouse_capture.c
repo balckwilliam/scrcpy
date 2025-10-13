@@ -81,24 +81,6 @@ sc_mouse_capture_handle_event(struct sc_mouse_capture *mc,
 
 void
 sc_mouse_capture_set_active(struct sc_mouse_capture *mc, bool capture) {
-#ifdef __APPLE__
-    // Workaround for SDL bug on macOS:
-    // <https://github.com/libsdl-org/SDL/issues/5340>
-    if (capture) {
-        float mouse_x, mouse_y;
-        SDL_GetGlobalMouseState(&mouse_x, &mouse_y);
-
-        int x, y, w, h;
-        SDL_GetWindowPosition(mc->window, &x, &y);
-        SDL_GetWindowSize(mc->window, &w, &h);
-
-        bool outside_window = mouse_x < x || mouse_x >= x + w
-                           || mouse_y < y || mouse_y >= y + h;
-        if (outside_window) {
-            SDL_WarpMouseInWindow(mc->window, w / 2, h / 2);
-        }
-    }
-#endif
     bool ok = SDL_SetWindowRelativeMouseMode(mc->window, capture);
     if (!ok) {
         LOGE("Could not set relative mouse mode to %s: %s",
