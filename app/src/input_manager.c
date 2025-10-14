@@ -410,106 +410,36 @@ sc_input_manager_process_key(struct sc_input_manager *im,
     if (is_shortcut) {
         enum sc_action action = down ? SC_ACTION_DOWN : SC_ACTION_UP;
         switch (sdl_keycode) {
-            case SDLK_H:
-                if (im->kp && !shift && !repeat && !paused) {
-                    action_home(im, action);
-                }
-                return;
-            case SDLK_B: // fall-through
-            case SDLK_BACKSPACE:
-                if (im->kp && !shift && !repeat && !paused) {
-                    action_back(im, action);
-                }
-                return;
-            case SDLK_S:
-                if (im->kp && !shift && !repeat && !paused) {
-                    action_app_switch(im, action);
-                }
-                return;
-            case SDLK_M:
-                if (im->kp && !shift && !repeat && !paused) {
-                    action_menu(im, action);
-                }
-                return;
-            case SDLK_P:
-                if (im->kp && !shift && !repeat && !paused) {
-                    action_power(im, action);
-                }
-                return;
-            case SDLK_O:
-                if (control && !repeat && down && !paused) {
-                    bool on = shift;
-                    set_display_power(im, on);
-                }
-                return;
             case SDLK_Z:
                 if (video && down && !repeat) {
                     sc_screen_set_paused(im->screen, !shift);
                 }
                 return;
             case SDLK_DOWN:
-                if (shift) {
-                    if (video && !repeat && down) {
-                        apply_orientation_transform(im,
-                                                    SC_ORIENTATION_FLIP_180);
-                    }
-                } else if (im->kp && !paused) {
-                    // forward repeated events
-                    action_volume_down(im, action);
+                if (video && shift && !repeat && down) {
+                    apply_orientation_transform(im, SC_ORIENTATION_FLIP_180);
                 }
                 return;
             case SDLK_UP:
-                if (shift) {
-                    if (video && !repeat && down) {
-                        apply_orientation_transform(im,
-                                                    SC_ORIENTATION_FLIP_180);
-                    }
-                } else if (im->kp && !paused) {
-                    // forward repeated events
-                    action_volume_up(im, action);
+                if (video && shift && !repeat && down) {
+                    apply_orientation_transform(im, SC_ORIENTATION_FLIP_180);
                 }
                 return;
             case SDLK_LEFT:
                 if (video && !repeat && down) {
                     if (shift) {
-                        apply_orientation_transform(im,
-                                                    SC_ORIENTATION_FLIP_0);
+                        apply_orientation_transform(im, SC_ORIENTATION_FLIP_0);
                     } else {
-                        apply_orientation_transform(im,
-                                                    SC_ORIENTATION_270);
+                        apply_orientation_transform(im, SC_ORIENTATION_270);
                     }
                 }
                 return;
             case SDLK_RIGHT:
                 if (video && !repeat && down) {
                     if (shift) {
-                        apply_orientation_transform(im,
-                                                    SC_ORIENTATION_FLIP_0);
+                        apply_orientation_transform(im, SC_ORIENTATION_FLIP_0);
                     } else {
-                        apply_orientation_transform(im,
-                                                    SC_ORIENTATION_90);
-                    }
-                }
-                return;
-            case SDLK_C:
-                if (im->kp && !shift && !repeat && down && !paused) {
-                    get_device_clipboard(im, SC_COPY_KEY_COPY);
-                }
-                return;
-            case SDLK_X:
-                if (im->kp && !shift && !repeat && down && !paused) {
-                    get_device_clipboard(im, SC_COPY_KEY_CUT);
-                }
-                return;
-            case SDLK_V:
-                if (im->kp && !repeat && down && !paused) {
-                    if (shift || im->legacy_paste) {
-                        // inject the text as input events
-                        clipboard_paste(im);
-                    } else {
-                        // store the text in the device clipboard and paste,
-                        // without requesting an acknowledgment
-                        set_device_clipboard(im, true, SC_SEQUENCE_INVALID);
+                        apply_orientation_transform(im, SC_ORIENTATION_90);
                     }
                 }
                 return;
@@ -533,33 +463,103 @@ sc_input_manager_process_key(struct sc_input_manager *im,
                     switch_fps_counter_state(im);
                 }
                 return;
-            case SDLK_N:
-                if (control && !repeat && down && !paused) {
-                    if (shift) {
-                        collapse_panels(im);
-                    } else if (im->key_repeat == 0) {
-                        expand_notification_panel(im);
-                    } else {
-                        expand_settings_panel(im);
+        }
+        if (control) {
+            switch (sdl_keycode) {
+                case SDLK_H:
+                    if (im->kp && !shift && !repeat && !paused) {
+                        action_home(im, action);
                     }
-                }
-                return;
-            case SDLK_R:
-                if (control && !repeat && down && !paused) {
-                    if (shift) {
-                        reset_video(im);
-                    } else {
-                        rotate_device(im);
+                    return;
+                case SDLK_B: // fall-through
+                case SDLK_BACKSPACE:
+                    if (im->kp && !shift && !repeat && !paused) {
+                        action_back(im, action);
                     }
-                }
-                return;
-            case SDLK_K:
-                if (control && !shift && !repeat && down && !paused
-                        && im->kp && im->kp->hid) {
-                    // Only if the current keyboard is hid
-                    open_hard_keyboard_settings(im);
-                }
-                return;
+                    return;
+                case SDLK_S:
+                    if (im->kp && !shift && !repeat && !paused) {
+                        action_app_switch(im, action);
+                    }
+                    return;
+                case SDLK_M:
+                    if (im->kp && !shift && !repeat && !paused) {
+                        action_menu(im, action);
+                    }
+                    return;
+                case SDLK_P:
+                    if (im->kp && !shift && !repeat && !paused) {
+                        action_power(im, action);
+                    }
+                    return;
+                case SDLK_O:
+                    if (control && !repeat && down && !paused) {
+                        bool on = shift;
+                        set_display_power(im, on);
+                    }
+                    return;
+                case SDLK_DOWN:
+                    if (im->kp && !shift && !paused) {
+                        // forward repeated events
+                        action_volume_down(im, action);
+                    }
+                    return;
+                case SDLK_UP:
+                    if (im->kp && !shift && !paused) {
+                        // forward repeated events
+                        action_volume_up(im, action);
+                    }
+                    return;
+                case SDLK_C:
+                    if (im->kp && !shift && !repeat && down && !paused) {
+                        get_device_clipboard(im, SC_COPY_KEY_COPY);
+                    }
+                    return;
+                case SDLK_X:
+                    if (im->kp && !shift && !repeat && down && !paused) {
+                        get_device_clipboard(im, SC_COPY_KEY_CUT);
+                    }
+                    return;
+                case SDLK_V:
+                    if (im->kp && !repeat && down && !paused) {
+                        if (shift || im->legacy_paste) {
+                            // inject the text as input events
+                            clipboard_paste(im);
+                        } else {
+                            // store the text in the device clipboard and paste,
+                            // without requesting an acknowledgment
+                            set_device_clipboard(im, true, SC_SEQUENCE_INVALID);
+                        }
+                    }
+                    return;
+                case SDLK_N:
+                    if (!repeat && down && !paused) {
+                        if (shift) {
+                            collapse_panels(im);
+                        } else if (im->key_repeat == 0) {
+                            expand_notification_panel(im);
+                        } else {
+                            expand_settings_panel(im);
+                        }
+                    }
+                    return;
+                case SDLK_R:
+                    if (!repeat && down && !paused) {
+                        if (shift) {
+                            reset_video(im);
+                        } else {
+                            rotate_device(im);
+                        }
+                    }
+                    return;
+                case SDLK_K:
+                    if (!shift && !repeat && down && !paused
+                            && im->kp && im->kp->hid) {
+                        // Only if the current keyboard is hid
+                        open_hard_keyboard_settings(im);
+                    }
+                    return;
+            }
         }
 
         return;
