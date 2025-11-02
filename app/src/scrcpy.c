@@ -802,6 +802,7 @@ aoa_complete:
 
         struct sc_screen_params screen_params = {
             .video = options->video_playback,
+            .camera = options->video_source == SC_VIDEO_SOURCE_CAMERA,
             .controller = controller,
             .fp = fp,
             .kp = kp,

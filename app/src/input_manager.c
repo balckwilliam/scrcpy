@@ -29,6 +29,7 @@ sc_input_manager_init(struct sc_input_manager *im,
     im->kp = params->kp;
     im->mp = params->mp;
     im->gp = params->gp;
+    im->camera = params->camera;
 
     im->mouse_bindings = params->mouse_bindings;
     im->legacy_paste = params->legacy_paste;
@@ -52,7 +53,7 @@ sc_input_manager_init(struct sc_input_manager *im,
 static void
 send_keycode(struct sc_input_manager *im, enum android_keycode keycode,
              enum sc_action action, const char *name) {
-    assert(im->controller && im->kp);
+    assert(im->controller && im->kp && !im->camera);
 
     // send DOWN event
     struct sc_control_msg msg;
@@ -109,7 +110,7 @@ action_menu(struct sc_input_manager *im, enum sc_action action) {
 static void
 press_back_or_turn_screen_on(struct sc_input_manager *im,
                              enum sc_action action) {
-    assert(im->controller && im->kp);
+    assert(im->controller && im->kp && !im->camera);
 
     struct sc_control_msg msg;
     msg.type = SC_CONTROL_MSG_TYPE_BACK_OR_SCREEN_ON;
@@ -124,7 +125,7 @@ press_back_or_turn_screen_on(struct sc_input_manager *im,
 
 static void
 expand_notification_panel(struct sc_input_manager *im) {
-    assert(im->controller);
+    assert(im->controller && !im->camera);
 
     struct sc_control_msg msg;
     msg.type = SC_CONTROL_MSG_TYPE_EXPAND_NOTIFICATION_PANEL;
@@ -136,7 +137,7 @@ expand_notification_panel(struct sc_input_manager *im) {
 
 static void
 expand_settings_panel(struct sc_input_manager *im) {
-    assert(im->controller);
+    assert(im->controller && !im->camera);
 
     struct sc_control_msg msg;
     msg.type = SC_CONTROL_MSG_TYPE_EXPAND_SETTINGS_PANEL;
@@ -148,7 +149,7 @@ expand_settings_panel(struct sc_input_manager *im) {
 
 static void
 collapse_panels(struct sc_input_manager *im) {
-    assert(im->controller);
+    assert(im->controller && !im->camera);
 
     struct sc_control_msg msg;
     msg.type = SC_CONTROL_MSG_TYPE_COLLAPSE_PANELS;
@@ -160,7 +161,7 @@ collapse_panels(struct sc_input_manager *im) {
 
 static bool
 get_device_clipboard(struct sc_input_manager *im, enum sc_copy_key copy_key) {
-    assert(im->controller && im->kp);
+    assert(im->controller && im->kp && !im->camera);
 
     struct sc_control_msg msg;
     msg.type = SC_CONTROL_MSG_TYPE_GET_CLIPBOARD;
@@ -177,7 +178,7 @@ get_device_clipboard(struct sc_input_manager *im, enum sc_copy_key copy_key) {
 static bool
 set_device_clipboard(struct sc_input_manager *im, bool paste,
                      uint64_t sequence) {
-    assert(im->controller && im->kp);
+    assert(im->controller && im->kp && !im->camera);
 
     char *text = SDL_GetClipboardText();
     if (!text) {
@@ -209,7 +210,7 @@ set_device_clipboard(struct sc_input_manager *im, bool paste,
 
 static void
 set_display_power(struct sc_input_manager *im, bool on) {
-    assert(im->controller);
+    assert(im->controller && !im->camera);
 
     struct sc_control_msg msg;
     msg.type = SC_CONTROL_MSG_TYPE_SET_DISPLAY_POWER;
@@ -236,7 +237,7 @@ switch_fps_counter_state(struct sc_input_manager *im) {
 
 static void
 clipboard_paste(struct sc_input_manager *im) {
-    assert(im->controller && im->kp);
+    assert(im->controller && im->kp && !im->camera);
 
     char *text = SDL_GetClipboardText();
     if (!text) {
@@ -267,7 +268,7 @@ clipboard_paste(struct sc_input_manager *im) {
 
 static void
 rotate_device(struct sc_input_manager *im) {
-    assert(im->controller);
+    assert(im->controller && !im->camera);
 
     struct sc_control_msg msg;
     msg.type = SC_CONTROL_MSG_TYPE_ROTATE_DEVICE;
@@ -279,7 +280,7 @@ rotate_device(struct sc_input_manager *im) {
 
 static void
 open_hard_keyboard_settings(struct sc_input_manager *im) {
-    assert(im->controller);
+    assert(im->controller && !im->camera);
 
     struct sc_control_msg msg;
     msg.type = SC_CONTROL_MSG_TYPE_OPEN_HARD_KEYBOARD_SETTINGS;
@@ -313,7 +314,7 @@ apply_orientation_transform(struct sc_input_manager *im,
 static void
 sc_input_manager_process_text_input(struct sc_input_manager *im,
                                     const SDL_TextInputEvent *event) {
-    if (!im->kp || im->screen->paused) {
+    if (im->camera || !im->kp || im->screen->paused) {
         return;
     }
 
@@ -473,7 +474,7 @@ sc_input_manager_process_key(struct sc_input_manager *im,
                 }
                 return;
         }
-        if (control) {
+        if (control && !im->camera) {
             switch (sdl_keycode) {
                 case SDLK_H:
                     if (im->kp && !shift && !repeat && !paused) {
@@ -578,6 +579,8 @@ sc_input_manager_process_key(struct sc_input_manager *im,
         return;
     }
 
+    assert(!im->camera);
+
     uint64_t ack_to_wait = SC_SEQUENCE_INVALID;
     bool is_ctrl_v = ctrl && !shift && sdl_keycode == SDLK_V && down && !repeat;
     if (im->clipboard_autosync && is_ctrl_v) {
@@ -649,7 +652,7 @@ sc_input_manager_get_position(struct sc_input_manager *im, int32_t x,
 static void
 sc_input_manager_process_mouse_motion(struct sc_input_manager *im,
                                       const SDL_MouseMotionEvent *event) {
-    if (!im->mp || im->screen->paused) {
+    if (im->camera || !im->mp || im->screen->paused) {
         return;
     }
 
@@ -688,7 +691,7 @@ sc_input_manager_process_mouse_motion(struct sc_input_manager *im,
 static void
 sc_input_manager_process_touch(struct sc_input_manager *im,
                                const SDL_TouchFingerEvent *event) {
-    if (!im->mp || im->screen->paused) {
+    if (im->camera || !im->mp || im->screen->paused) {
         return;
     }
 
@@ -742,6 +745,10 @@ sc_input_manager_process_mouse_button(struct sc_input_manager *im,
                                       const SDL_MouseButtonEvent *event) {
     // some mouse events do not interact with the device, so process the event
     // even if control is disabled
+
+    if (im->camera) {
+        return;
+    }
 
     if (event->which == SDL_TOUCH_MOUSEID) {
         // simulated from touch events, so it's a duplicate
@@ -910,7 +917,7 @@ sc_input_manager_process_mouse_button(struct sc_input_manager *im,
 static void
 sc_input_manager_process_mouse_wheel(struct sc_input_manager *im,
                                      const SDL_MouseWheelEvent *event) {
-    if (!im->kp || im->screen->paused) {
+    if (im->camera || !im->kp || im->screen->paused) {
         return;
     }
 
@@ -940,7 +947,7 @@ sc_input_manager_process_gamepad_device(struct sc_input_manager *im,
                                        const SDL_GamepadDeviceEvent *event) {
     // Handle device added or removed even if paused
 
-    if (!im->gp) {
+    if (im->camera || !im->gp) {
         return;
     }
 
@@ -985,7 +992,7 @@ sc_input_manager_process_gamepad_device(struct sc_input_manager *im,
 static void
 sc_input_manager_process_gamepad_axis(struct sc_input_manager *im,
                                       const SDL_GamepadAxisEvent *event) {
-    if (!im->gp || im->screen->paused) {
+    if (im->camera || !im->gp || im->screen->paused) {
         return;
     }
 
@@ -1005,7 +1012,7 @@ sc_input_manager_process_gamepad_axis(struct sc_input_manager *im,
 static void
 sc_input_manager_process_gamepad_button(struct sc_input_manager *im,
                                        const SDL_GamepadButtonEvent *event) {
-    if (!im->gp || im->screen->paused) {
+    if (im->camera || !im->gp || im->screen->paused) {
         return;
     }
 
@@ -1031,7 +1038,7 @@ is_apk(const char *file) {
 static void
 sc_input_manager_process_file(struct sc_input_manager *im,
                               const SDL_DropEvent *event) {
-    if (!im->controller) {
+    if (im->camera || !im->controller) {
         return;
     }
 

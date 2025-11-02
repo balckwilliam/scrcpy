@@ -24,6 +24,8 @@ struct sc_input_manager {
     struct sc_mouse_processor *mp;
     struct sc_gamepad_processor *gp;
 
+    bool camera;
+
     struct sc_mouse_bindings mouse_bindings;
     bool legacy_paste;
     bool clipboard_autosync;
@@ -53,6 +55,7 @@ struct sc_input_manager_params {
     struct sc_key_processor *kp;
     struct sc_mouse_processor *mp;
     struct sc_gamepad_processor *gp;
+    bool camera;
 
     struct sc_mouse_bindings mouse_bindings;
     bool legacy_paste;
