@@ -30,6 +30,7 @@ struct sc_screen {
 #endif
 
     bool video;
+    bool camera;
 
     struct sc_display display;
     struct sc_input_manager im;
@@ -74,6 +75,7 @@ struct sc_screen {
 
 struct sc_screen_params {
     bool video;
+    bool camera;
 
     struct sc_controller *controller;
     struct sc_file_pusher *fp;

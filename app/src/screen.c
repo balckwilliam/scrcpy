@@ -302,6 +302,7 @@ sc_screen_init(struct sc_screen *screen,
     screen->orientation = SC_ORIENTATION_0;
 
     screen->video = params->video;
+    screen->camera = params->camera;
 
     screen->req.x = params->window_x;
     screen->req.y = params->window_y;
@@ -412,6 +413,7 @@ sc_screen_init(struct sc_screen *screen,
         .kp = params->kp,
         .mp = params->mp,
         .gp = params->gp,
+        .camera = params->camera,
         .mouse_bindings = params->mouse_bindings,
         .legacy_paste = params->legacy_paste,
         .clipboard_autosync = params->clipboard_autosync,

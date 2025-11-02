@@ -2928,7 +2928,7 @@ parse_args_with_getopt(struct scrcpy_cli_args *args, int argc, char *argv[],
     }
 #endif
 
-    if (opts->control) {
+    if (opts->control && opts->video_source == SC_VIDEO_SOURCE_DISPLAY) {
         if (opts->keyboard_input_mode == SC_KEYBOARD_INPUT_MODE_AUTO) {
             opts->keyboard_input_mode = otg ? SC_KEYBOARD_INPUT_MODE_AOA
                                             : SC_KEYBOARD_INPUT_MODE_SDK;
@@ -3106,8 +3106,10 @@ parse_args_with_getopt(struct scrcpy_cli_args *args, int argc, char *argv[],
         }
 
         if (opts->control) {
-            LOGI("Camera video source: control disabled");
-            opts->control = false;
+            // Disable all inputs for camera
+            opts->keyboard_input_mode = SC_KEYBOARD_INPUT_MODE_DISABLED;
+            opts->mouse_input_mode = SC_MOUSE_INPUT_MODE_DISABLED;
+            opts->gamepad_input_mode = SC_GAMEPAD_INPUT_MODE_DISABLED;
         }
     } else if (opts->camera_id
             || opts->camera_ar
