@@ -264,78 +264,80 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
             return false;
         }
 
-        switch (msg.getType()) {
+        int type = msg.getType();
+
+        switch (type) {
             case ControlMessage.TYPE_INJECT_KEYCODE:
                 if (supportsInputEvents) {
                     injectKeycode(msg.getAction(), msg.getKeycode(), msg.getRepeat(), msg.getMetaState());
                 }
-                break;
+                return true;
             case ControlMessage.TYPE_INJECT_TEXT:
                 if (supportsInputEvents) {
                     injectText(msg.getText());
                 }
-                break;
+                return true;
             case ControlMessage.TYPE_INJECT_TOUCH_EVENT:
                 if (supportsInputEvents) {
                     injectTouch(msg.getAction(), msg.getPointerId(), msg.getPosition(), msg.getPressure(), msg.getActionButton(), msg.getButtons());
                 }
-                break;
+                return true;
             case ControlMessage.TYPE_INJECT_SCROLL_EVENT:
                 if (supportsInputEvents) {
                     injectScroll(msg.getPosition(), msg.getHScroll(), msg.getVScroll(), msg.getButtons());
                 }
-                break;
+                return true;
             case ControlMessage.TYPE_BACK_OR_SCREEN_ON:
                 if (supportsInputEvents) {
                     pressBackOrTurnScreenOn(msg.getAction());
                 }
-                break;
+                return true;
             case ControlMessage.TYPE_EXPAND_NOTIFICATION_PANEL:
                 Device.expandNotificationPanel();
-                break;
+                return true;
             case ControlMessage.TYPE_EXPAND_SETTINGS_PANEL:
                 Device.expandSettingsPanel();
-                break;
+                return true;
             case ControlMessage.TYPE_COLLAPSE_PANELS:
                 Device.collapsePanels();
-                break;
+                return true;
             case ControlMessage.TYPE_GET_CLIPBOARD:
                 getClipboard(msg.getCopyKey());
-                break;
+                return true;
             case ControlMessage.TYPE_SET_CLIPBOARD:
                 setClipboard(msg.getText(), msg.getPaste(), msg.getSequence());
-                break;
+                return true;
             case ControlMessage.TYPE_SET_DISPLAY_POWER:
                 if (supportsInputEvents) {
                     setDisplayPower(msg.getOn());
                 }
-                break;
+                return true;
             case ControlMessage.TYPE_ROTATE_DEVICE:
                 Device.rotateDevice(getActionDisplayId());
-                break;
+                return true;
             case ControlMessage.TYPE_UHID_CREATE:
                 getUhidManager().open(msg.getId(), msg.getVendorId(), msg.getProductId(), msg.getText(), msg.getData());
-                break;
+                return true;
             case ControlMessage.TYPE_UHID_INPUT:
                 getUhidManager().writeInput(msg.getId(), msg.getData());
-                break;
+                return true;
             case ControlMessage.TYPE_UHID_DESTROY:
                 getUhidManager().close(msg.getId());
-                break;
+                return true;
             case ControlMessage.TYPE_OPEN_HARD_KEYBOARD_SETTINGS:
                 openHardKeyboardSettings();
-                break;
+                return true;
             case ControlMessage.TYPE_START_APP:
                 startAppAsync(msg.getText());
-                break;
+                return true;
             case ControlMessage.TYPE_RESET_VIDEO:
                 resetVideo();
-                break;
+                return true;
             default:
-                // do nothing
+                // fall through
         }
 
-        return true;
+        throw new AssertionError("Unexpected message type: " + type);
     }
 
     private boolean injectKeycode(int action, int keycode, int repeat, int metaState) {
