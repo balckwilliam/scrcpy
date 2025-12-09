@@ -23,6 +23,7 @@ import android.media.MediaCodecList;
 import android.os.Build;
 import android.util.Range;
 
+import java.text.DecimalFormat;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -172,7 +173,21 @@ public final class LogUtils {
                         Ln.w("Could not get available frame rates for camera " + id, e);
                     }
 
+                    if (Build.VERSION.SDK_INT >= AndroidVersions.API_30_ANDROID_11) {
+                        try {
+                            Range<Float> zoomRange = characteristics.get(CameraCharacteristics.CONTROL_ZOOM_RATIO_RANGE);
+                            if (zoomRange != null) {
+                                String zoom = getFormattedZoomRange(zoomRange);
+                                builder.append(", zoom-range=").append(zoom);
+                            }
+                        } catch (Exception e) {
+                            Ln.w("Could not get available zoom ranges for camera " + id, e);
+                        }
+                    }
+
                     builder.append(')');
+
+
 
                     if (includeSizes) {
                         StreamConfigurationMap configs = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
@@ -224,6 +239,11 @@ public final class LogUtils {
         builder.append("}");
 
         return builder.toString();
+    }
+
+    private static String getFormattedZoomRange(Range<Float> range) {
+        DecimalFormat format = new DecimalFormat("#.##");
+        return "[" + format.format(range.getLower()) + ", " + format.format(range.getUpper()) + "]";
     }
 
     public static String buildAppListMessage() {
