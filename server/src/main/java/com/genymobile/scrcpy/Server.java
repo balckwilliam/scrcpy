@@ -27,6 +27,8 @@ import com.genymobile.scrcpy.video.VideoSource;
 import android.annotation.SuppressLint;
 import android.os.Build;
 import android.os.Looper;
+import android.system.ErrnoException;
+import android.system.Os;
 
 import java.io.File;
 import java.io.IOException;
@@ -233,6 +235,8 @@ public final class Server {
             }
         });
 
+        dropRootPrivileges();
+
         prepareMainLooper();
 
         Options options = Options.parse(args);
@@ -271,6 +275,19 @@ public final class Server {
             scrcpy(options);
         } catch (ConfigurationException e) {
             // Do not print stack trace, a user-friendly error-message has already been logged
+        }
+    }
+
+    @SuppressWarnings("deprecation")
+    private static void dropRootPrivileges() {
+        try {
+            if (Os.getuid() == 0) {
+                // Copy-paste does not work with root user
+                // <https://github.com/Genymobile/scrcpy/issues/6224>
+                Os.setuid(2000);
+            }
+        } catch (Exception e) {
+            Ln.w("Cannot set UID", e);
         }
     }
 }
