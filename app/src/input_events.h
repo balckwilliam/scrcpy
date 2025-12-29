@@ -14,7 +14,8 @@
  * for simplicity.
  *
  * This scrcpy input events API is designed to be consumed by input event
- * processors (sc_key_processor and sc_mouse_processor, see app/src/trait/).
+ * processors (sc_key_processor, sc_mouse_processor and sc_gamepad_processor,
+ * see app/src/trait/).
  *
  * One major semantic difference between SDL input events and scrcpy input
  * events is their frame of reference (for mouse and touch events): SDL events
