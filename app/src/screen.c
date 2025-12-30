@@ -759,13 +759,8 @@ void
 sc_screen_resize_to_pixel_perfect(struct sc_screen *screen) {
     assert(screen->video);
 
-    if (screen->fullscreen || screen->minimized) {
+    if (screen->fullscreen || screen->maximized || screen->minimized) {
         return;
-    }
-
-    if (screen->maximized) {
-        sc_sdl_restore_window(screen->window);
-        screen->maximized = false;
     }
 
     struct sc_size content_size = screen->content_size;

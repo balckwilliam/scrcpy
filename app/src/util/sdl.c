@@ -130,15 +130,6 @@ sc_sdl_hide_window(SDL_Window *window) {
     }
 }
 
-void
-sc_sdl_restore_window(SDL_Window *window) {
-    bool ok = SDL_RestoreWindow(window);
-    if (!ok) {
-        LOGE("Could not restore window: %s", SDL_GetError());
-        assert(!"unexpected");
-    }
-}
-
 bool
 sc_sdl_render_clear(SDL_Renderer *renderer) {
     bool ok = SDL_RenderClear(renderer);
