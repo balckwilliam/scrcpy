@@ -27,12 +27,11 @@ get_oriented_size(struct sc_size size, enum sc_orientation orientation) {
     return oriented_size;
 }
 
-static inline void
-assert_not_fullscreen(struct sc_screen *screen) {
-    (void) screen;
-    assert(!screen->fullscreen);
-    assert(!screen->maximized);
-    assert(!screen->minimized);
+static inline bool
+is_windowed(struct sc_screen *screen) {
+    return !(SDL_GetWindowFlags(screen->window) & (SDL_WINDOW_FULLSCREEN
+                                                 | SDL_WINDOW_MINIMIZED
+                                                 | SDL_WINDOW_MAXIMIZED));
 }
 
 // get the preferred display bounds (i.e. the screen bounds with some margins)
@@ -296,9 +295,6 @@ sc_screen_init(struct sc_screen *screen,
     screen->resize_pending = false;
     screen->has_frame = false;
     screen->has_video_window = false;
-    screen->fullscreen = false;
-    screen->maximized = false;
-    screen->minimized = false;
     screen->paused = false;
     screen->resume_frame = NULL;
     screen->orientation = SC_ORIENTATION_0;
@@ -481,7 +477,7 @@ sc_screen_show_initial_window(struct sc_screen *screen) {
         get_initial_optimal_size(screen->content_size, screen->req.width,
                                                        screen->req.height);
 
-    assert_not_fullscreen(screen);
+    assert(is_windowed(screen));
     sc_sdl_set_window_size(screen->window, window_size);
     sc_sdl_set_window_position(screen->window, position);
 
@@ -537,7 +533,7 @@ resize_for_content(struct sc_screen *screen, struct sc_size old_content_size,
                 / old_content_size.height,
     };
     target_size = get_optimal_size(target_size, new_content_size, true);
-    assert_not_fullscreen(screen);
+    assert(is_windowed(screen));
     sc_sdl_set_window_size(screen->window, target_size);
 }
 
@@ -545,7 +541,7 @@ static void
 set_content_size(struct sc_screen *screen, struct sc_size new_content_size) {
     assert(screen->video);
 
-    if (!screen->fullscreen && !screen->maximized && !screen->minimized) {
+    if (is_windowed(screen)) {
         resize_for_content(screen, screen->content_size, new_content_size);
     } else if (!screen->resize_pending) {
         // Store the windowed size to be able to compute the optimal size once
@@ -561,9 +557,7 @@ static void
 apply_pending_resize(struct sc_screen *screen) {
     assert(screen->video);
 
-    assert(!screen->fullscreen);
-    assert(!screen->maximized);
-    assert(!screen->minimized);
+    assert(is_windowed(screen));
     if (screen->resize_pending) {
         resize_for_content(screen, screen->windowed_content_size,
                                    screen->content_size);
@@ -711,26 +705,23 @@ void
 sc_screen_toggle_fullscreen(struct sc_screen *screen) {
     assert(screen->video);
 
-    bool ok = SDL_SetWindowFullscreen(screen->window, !screen->fullscreen);
+    bool req_fullscreen =
+        !(SDL_GetWindowFlags(screen->window) & SDL_WINDOW_FULLSCREEN);
+
+    bool ok = SDL_SetWindowFullscreen(screen->window, req_fullscreen);
     if (!ok) {
         LOGW("Could not switch fullscreen mode: %s", SDL_GetError());
         return;
     }
 
-    screen->fullscreen = !screen->fullscreen;
-    if (!screen->fullscreen && !screen->maximized && !screen->minimized) {
-        apply_pending_resize(screen);
-    }
-
-    LOGD("Switched to %s mode", screen->fullscreen ? "fullscreen" : "windowed");
-    sc_screen_render(screen, true);
+    LOGD("Requested %s mode", req_fullscreen ? "fullscreen" : "windowed");
 }
 
 void
 sc_screen_resize_to_fit(struct sc_screen *screen) {
     assert(screen->video);
 
-    if (screen->fullscreen || screen->maximized || screen->minimized) {
+    if (!is_windowed(screen)) {
         return;
     }
 
@@ -759,7 +750,7 @@ void
 sc_screen_resize_to_pixel_perfect(struct sc_screen *screen) {
     assert(screen->video);
 
-    if (screen->fullscreen || screen->maximized || screen->minimized) {
+    if (!is_windowed(screen)) {
         return;
     }
 
@@ -794,24 +785,20 @@ sc_screen_handle_event(struct sc_screen *screen, const SDL_Event *event) {
                 sc_screen_render(screen, true);
             }
             return true;
-        case SDL_EVENT_WINDOW_MAXIMIZED:
-            screen->maximized = true;
-            return true;
-        case SDL_EVENT_WINDOW_MINIMIZED:
-            screen->minimized = true;
-            return true;
         case SDL_EVENT_WINDOW_RESTORED:
-            if (screen->fullscreen) {
-                // On Windows, in maximized+fullscreen, disabling
-                // fullscreen mode unexpectedly triggers the "restored"
-                // then "maximized" events, leaving the window in a
-                // weird state (maximized according to the events, but
-                // not maximized visually).
-                return true;
+            if (screen->has_video_window && is_windowed(screen)) {
+                apply_pending_resize(screen);
+                sc_screen_render(screen, true);
             }
-            screen->maximized = false;
-            screen->minimized = false;
-            if (screen->has_video_window) {
+            return true;
+        case SDL_EVENT_WINDOW_ENTER_FULLSCREEN:
+            LOGD("Switched to fullscreen mode");
+            assert(screen->has_video_window);
+            return true;
+        case SDL_EVENT_WINDOW_LEAVE_FULLSCREEN:
+            LOGD("Switched to windowed mode");
+            assert(screen->has_video_window);
+            if (is_windowed(screen)) {
                 apply_pending_resize(screen);
                 sc_screen_render(screen, true);
             }

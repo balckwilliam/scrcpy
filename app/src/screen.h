@@ -62,9 +62,6 @@ struct sc_screen {
     struct SDL_Rect rect;
     bool has_frame;
     bool has_video_window;
-    bool fullscreen;
-    bool maximized;
-    bool minimized;
 
     AVFrame *frame;
 
