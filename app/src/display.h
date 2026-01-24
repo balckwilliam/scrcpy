@@ -15,9 +15,17 @@
 # define SC_DISPLAY_FORCE_OPENGL_CORE_PROFILE
 #endif
 
+enum sc_texture_type {
+    SC_TEXTURE_TYPE_FRAME,
+    SC_TEXTURE_TYPE_ICON,
+};
+
 struct sc_display {
     SDL_Renderer *renderer; // owned by the caller
     SDL_Texture *texture;
+    // Only valid if texture != NULL
+    struct sc_size texture_size;
+    enum sc_texture_type texture_type;
 
     struct sc_opengl gl;
 #ifdef SC_DISPLAY_FORCE_OPENGL_CORE_PROFILE
@@ -36,12 +44,8 @@ void
 sc_display_destroy(struct sc_display *display);
 
 bool
-sc_display_prepare_texture(struct sc_display *display, struct sc_size size,
-                           enum AVColorSpace color_space,
-                           enum AVColorRange color_range);
-
-bool
-sc_display_update_texture(struct sc_display *display, const AVFrame *frame);
+sc_display_set_texture_from_frame(struct sc_display *display,
+                                  const AVFrame *frame);
 
 bool
 sc_display_set_texture_from_surface(struct sc_display *display,
