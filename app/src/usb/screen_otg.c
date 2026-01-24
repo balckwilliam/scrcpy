@@ -60,8 +60,7 @@ sc_screen_otg_init(struct sc_screen_otg *screen,
         goto error_destroy_window;
     }
 
-    SDL_Surface *icon = scrcpy_icon_load();
-
+    SDL_Surface *icon = sc_icon_load_scrcpy();
     if (icon) {
         bool ok = SDL_SetWindowIcon(screen->window, icon);
         if (!ok) {
@@ -77,7 +76,7 @@ sc_screen_otg_init(struct sc_screen_otg *screen,
         }
 
         screen->texture = SDL_CreateTextureFromSurface(screen->renderer, icon);
-        scrcpy_icon_destroy(icon);
+        sc_icon_destroy(icon);
         if (!screen->texture) {
             goto error_destroy_renderer;
         }

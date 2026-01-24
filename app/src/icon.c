@@ -178,8 +178,8 @@ to_sdl_pixel_format(enum AVPixelFormat fmt) {
     }
 }
 
-static SDL_Surface *
-load_from_path(const char *path) {
+SDL_Surface *
+sc_icon_load(const char *path) {
     AVFrame *frame = decode_image(path);
     if (!frame) {
         return NULL;
@@ -276,19 +276,19 @@ error:
 }
 
 SDL_Surface *
-scrcpy_icon_load(void) {
+sc_icon_load_scrcpy(void) {
     char *icon_path = get_icon_path();
     if (!icon_path) {
         return NULL;
     }
 
-    SDL_Surface *icon = load_from_path(icon_path);
+    SDL_Surface *icon = sc_icon_load(icon_path);
     free(icon_path);
     return icon;
 }
 
 void
-scrcpy_icon_destroy(SDL_Surface *icon) {
+sc_icon_destroy(SDL_Surface *icon) {
     SDL_PropertiesID props = SDL_GetSurfaceProperties(icon);
     assert(props);
     AVFrame *frame = SDL_GetPointerProperty(props, "sc_frame", NULL);

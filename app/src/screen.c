@@ -375,7 +375,7 @@ sc_screen_init(struct sc_screen *screen,
         goto error_destroy_window;
     }
 
-    SDL_Surface *icon = scrcpy_icon_load();
+    SDL_Surface *icon = sc_icon_load_scrcpy();
     if (icon) {
         if (!SDL_SetWindowIcon(screen->window, icon)) {
             LOGW("Could not set window icon: %s", SDL_GetError());
@@ -394,7 +394,7 @@ sc_screen_init(struct sc_screen *screen,
     ok = sc_display_init(&screen->display, screen->window, icon_novideo,
                          mipmaps);
     if (icon) {
-        scrcpy_icon_destroy(icon);
+        sc_icon_destroy(icon);
     }
     if (!ok) {
         goto error_destroy_window;

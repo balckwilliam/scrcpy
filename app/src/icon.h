@@ -6,9 +6,12 @@
 #include <SDL3/SDL_surface.h>
 
 SDL_Surface *
-scrcpy_icon_load(void);
+sc_icon_load(const char *path);
+
+SDL_Surface *
+sc_icon_load_scrcpy(void);
 
 void
-scrcpy_icon_destroy(SDL_Surface *icon);
+sc_icon_destroy(SDL_Surface *icon);
 
 #endif
