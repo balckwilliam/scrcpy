@@ -949,7 +949,7 @@ aoa_complete:
     terminate_event_loop();
     LOGD("quit...");
 
-    if (options->video_playback) {
+    if (options->window) {
         // Close the window immediately on closing, because screen_destroy()
         // may only be called once the video demuxer thread is joined (it may
         // take time)
