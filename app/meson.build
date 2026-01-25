@@ -57,6 +57,7 @@ src = [
     'src/util/process.c',
     'src/util/process_intr.c',
     'src/util/rand.c',
+    'src/util/rect.c',
     'src/util/sdl.c',
     'src/util/strbuf.c',
     'src/util/str.c',

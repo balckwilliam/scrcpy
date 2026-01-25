@@ -8,6 +8,7 @@
 #include "icon.h"
 #include "options.h"
 #include "util/log.h"
+#include "util/rect.h"
 #include "util/sdl.h"
 
 #define DISPLAY_MARGINS 96
@@ -55,16 +56,6 @@ get_preferred_display_bounds(struct sc_size *bounds) {
     return true;
 }
 
-static bool
-is_optimal_size(struct sc_size current_size, struct sc_size content_size) {
-    // The size is optimal if we can recompute one dimension of the current
-    // size from the other
-    return current_size.height == current_size.width * content_size.height
-                                                     / content_size.width
-        || current_size.width == current_size.height * content_size.width
-                                                     / content_size.height;
-}
-
 // return the optimal size of the window, with the following constraints:
 //  - it attempts to keep at least one dimension of the current_size (i.e. it
 //    crops the black borders)
@@ -90,7 +81,7 @@ get_optimal_size(struct sc_size current_size, struct sc_size content_size,
         window_size.height = MIN(current_size.height, display_size.height);
     }
 
-    if (is_optimal_size(window_size, content_size)) {
+    if (sc_rect_is_optimal_size(window_size, content_size)) {
         return window_size;
     }
 
@@ -144,51 +135,14 @@ sc_screen_is_relative_mode(struct sc_screen *screen) {
 }
 
 static void
-compute_rect(struct sc_size render_size, struct sc_size content_size,
-             bool can_upscale, SDL_FRect *rect) {
-    if (is_optimal_size(render_size, content_size)) {
-        rect->x = 0;
-        rect->y = 0;
-        rect->w = render_size.width;
-        rect->h = render_size.height;
-        return;
-    }
-
-    if (!can_upscale && content_size.width <= render_size.width
-                     && content_size.height <= render_size.height) {
-        // Center without upscaling
-        rect->x = (render_size.width - content_size.width) / 2.f;
-        rect->y = (render_size.height - content_size.height) / 2.f;
-        rect->w = content_size.width;
-        rect->h = content_size.height;
-        return;
-    }
-
-    bool keep_width = content_size.width * render_size.height
-                    > content_size.height * render_size.width;
-    if (keep_width) {
-        rect->x = 0;
-        rect->w = render_size.width;
-        rect->h = (float) render_size.width * content_size.height
-                                            / content_size.width;
-        rect->y = (render_size.height - rect->h) / 2.f;
-    } else {
-        rect->y = 0;
-        rect->h = render_size.height;
-        rect->w = (float) render_size.height * content_size.width
-                                             / content_size.height;
-        rect->x = (render_size.width - rect->w) / 2.f;
-    }
-}
-
-static void
 sc_screen_update_content_rect(struct sc_screen *screen) {
     // Only upscale video frames, not icon
     bool can_upscale = screen->video;
 
     struct sc_size render_size =
         sc_sdl_get_render_output_size(screen->renderer);
-    compute_rect(render_size, screen->content_size, can_upscale, &screen->rect);
+    sc_rect_get_content_location(render_size, screen->content_size, can_upscale,
+                                 &screen->rect);
 }
 
 // render the texture to the renderer
