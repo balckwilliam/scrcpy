@@ -167,23 +167,41 @@ sdl_configure(bool video_playback, bool disable_screensaver) {
 }
 
 static enum scrcpy_exit_code
-event_loop(struct scrcpy *s, bool has_screen) {
+event_loop(struct scrcpy *s, bool has_screen, bool disconnected) {
     SDL_Event event;
     while (SDL_WaitEvent(&event)) {
         switch (event.type) {
             case SC_EVENT_DEVICE_DISCONNECTED:
+                if (disconnected) {
+                    break;
+                }
                 LOGW("Device disconnected");
+                if (has_screen && !sc_screen_handle_event(&s->screen, &event)) {
+                    return SCRCPY_EXIT_FAILURE;
+                }
                 return SCRCPY_EXIT_DISCONNECTED;
             case SC_EVENT_DEMUXER_ERROR:
+                if (disconnected) {
+                    break;
+                }
                 LOGE("Demuxer error");
                 return SCRCPY_EXIT_FAILURE;
             case SC_EVENT_CONTROLLER_ERROR:
+                if (disconnected) {
+                    break;
+                }
                 LOGE("Controller error");
                 return SCRCPY_EXIT_FAILURE;
             case SC_EVENT_RECORDER_ERROR:
+                if (disconnected) {
+                    break;
+                }
                 LOGE("Recorder error");
                 return SCRCPY_EXIT_FAILURE;
             case SC_EVENT_AOA_OPEN_ERROR:
+                if (disconnected) {
+                    break;
+                }
                 LOGE("AOA open error");
                 return SCRCPY_EXIT_FAILURE;
             case SC_EVENT_TIME_LIMIT_REACHED:
@@ -192,6 +210,9 @@ event_loop(struct scrcpy *s, bool has_screen) {
             case SDL_EVENT_QUIT:
                 LOGD("User requested to quit");
                 return SCRCPY_EXIT_SUCCESS;
+            case SC_EVENT_DISCONNECTED_TIMEOUT:
+                LOGD("Closing after device disconnection");
+                return SCRCPY_EXIT_DISCONNECTED;
             case SC_EVENT_RUN_ON_MAIN_THREAD: {
                 sc_runnable_fn run = event.user.data1;
                 void *userdata = event.user.data2;
@@ -945,16 +966,9 @@ aoa_complete:
         }
     }
 
-    ret = event_loop(s, options->window);
+    ret = event_loop(s, options->window, false);
     terminate_event_loop();
-    LOGD("quit...");
-
-    if (options->window) {
-        // Close the window immediately on closing, because screen_destroy()
-        // may only be called once the video demuxer thread is joined (it may
-        // take time)
-        sc_screen_hide_window(&s->screen);
-    }
+    bool disconnected = ret == SCRCPY_EXIT_DISCONNECTED;
 
 end:
     if (timeout_started) {
@@ -997,6 +1011,24 @@ end:
     if (server_started) {
         // shutdown the sockets and kill the server
         sc_server_stop(&s->server);
+    }
+
+    if (options->window && ret != SCRCPY_EXIT_DISCONNECTED) {
+        // Close the window immediately, because sc_screen_destroy() may only be
+        // called once the video demuxer thread is joined (it may take time)
+        sc_screen_hide_window(&s->screen);
+    }
+
+    if (screen_initialized && options->window) {
+        if (disconnected) {
+            ret = event_loop(s, options->window, true);
+            sc_screen_interrupt_disconnect(&s->screen);
+        }
+        LOGD("Quit...");
+
+        // Close the window immediately, because sc_screen_destroy() may only be
+        // called once the video demuxer thread is joined (it may take time)
+        sc_screen_hide_window(&s->screen);
     }
 
     if (timeout_started) {
