@@ -7,14 +7,23 @@
 #include "options.h"
 #include "util/acksync.h"
 #include "util/log.h"
+#include "util/rect.h"
 #include "util/sdl.h"
 
 static void
 sc_screen_otg_render(struct sc_screen_otg *screen) {
     sc_sdl_render_clear(screen->renderer);
-    if (screen->texture) {
-        bool ok =
-            SDL_RenderTexture(screen->renderer, screen->texture, NULL, NULL);
+
+    SDL_Texture *texture = screen->tex.texture;
+    if (texture) {
+        struct sc_size render_size =
+            sc_sdl_get_render_output_size(screen->renderer);
+
+        SDL_FRect rect;
+        sc_rect_get_content_location(render_size, screen->tex.texture_size,
+                                     false, &rect);
+
+        bool ok = SDL_RenderTexture(screen->renderer, texture, NULL, &rect);
         if (!ok) {
             LOGW("Could not render texture: %s", SDL_GetError());
         }
@@ -60,30 +69,25 @@ sc_screen_otg_init(struct sc_screen_otg *screen,
         goto error_destroy_window;
     }
 
-    SDL_Surface *icon = scrcpy_icon_load();
+    bool ok = sc_texture_init(&screen->tex, screen->renderer, false);
+    if (!ok) {
+        goto error_destroy_renderer;
+    }
 
+    SDL_Surface *icon = scrcpy_icon_load();
     if (icon) {
         bool ok = SDL_SetWindowIcon(screen->window, icon);
         if (!ok) {
             LOGW("Could not set window icon: %s", SDL_GetError());
         }
 
-        ok = SDL_SetRenderLogicalPresentation(screen->renderer, icon->w,
-                                              icon->h,
-                                         SDL_LOGICAL_PRESENTATION_LETTERBOX);
-        if (!ok) {
-            LOGW("Could not set renderer logical size: %s", SDL_GetError());
-            // don't fail
-        }
-
-        screen->texture = SDL_CreateTextureFromSurface(screen->renderer, icon);
+        ok = sc_texture_set_from_surface(&screen->tex, icon);
         scrcpy_icon_destroy(icon);
-        if (!screen->texture) {
-            goto error_destroy_renderer;
+        if (!ok) {
+            LOGE("Could not set icon: %s", SDL_GetError());
         }
     } else {
-        screen->texture = NULL;
-        LOGW("Could not load icon");
+        LOGE("Could not load icon");
     }
 
     sc_mouse_capture_init(&screen->mc, screen->window, params->shortcut_mods);
@@ -95,19 +99,17 @@ sc_screen_otg_init(struct sc_screen_otg *screen,
 
     return true;
 
-error_destroy_window:
-    SDL_DestroyWindow(screen->window);
 error_destroy_renderer:
     SDL_DestroyRenderer(screen->renderer);
+error_destroy_window:
+    SDL_DestroyWindow(screen->window);
 
     return false;
 }
 
 void
 sc_screen_otg_destroy(struct sc_screen_otg *screen) {
-    if (screen->texture) {
-        SDL_DestroyTexture(screen->texture);
-    }
+    sc_texture_destroy(&screen->tex);
     SDL_DestroyRenderer(screen->renderer);
     SDL_DestroyWindow(screen->window);
 }

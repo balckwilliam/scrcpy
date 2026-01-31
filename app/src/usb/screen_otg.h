@@ -8,6 +8,7 @@
 #include <SDL3/SDL.h>
 
 #include "mouse_capture.h"
+#include "texture.h"
 #include "usb/gamepad_aoa.h"
 #include "usb/keyboard_aoa.h"
 #include "usb/mouse_aoa.h"
@@ -19,7 +20,7 @@ struct sc_screen_otg {
 
     SDL_Window *window;
     SDL_Renderer *renderer;
-    SDL_Texture *texture;
+    struct sc_texture tex;
 
     struct sc_mouse_capture mc;
 };
