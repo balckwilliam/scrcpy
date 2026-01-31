@@ -74,7 +74,7 @@ sc_screen_otg_init(struct sc_screen_otg *screen,
         goto error_destroy_renderer;
     }
 
-    SDL_Surface *icon = scrcpy_icon_load();
+    SDL_Surface *icon = sc_icon_load(SC_ICON_FILENAME_SCRCPY);
     if (icon) {
         bool ok = SDL_SetWindowIcon(screen->window, icon);
         if (!ok) {
@@ -82,7 +82,7 @@ sc_screen_otg_init(struct sc_screen_otg *screen,
         }
 
         ok = sc_texture_set_from_surface(&screen->tex, icon);
-        scrcpy_icon_destroy(icon);
+        sc_icon_destroy(icon);
         if (!ok) {
             LOGE("Could not set icon: %s", SDL_GetError());
         }
