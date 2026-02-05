@@ -157,8 +157,7 @@ void
 sc_screen_set_paused(struct sc_screen *screen, bool paused);
 
 // react to SDL events
-// If this function returns false, scrcpy must exit with an error.
-bool
+void
 sc_screen_handle_event(struct sc_screen *screen, const SDL_Event *event);
 
 // convert point from window coordinates to frame coordinates
