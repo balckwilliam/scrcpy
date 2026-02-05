@@ -444,7 +444,7 @@ sc_recorder_process_packets(struct sc_recorder *recorder) {
     int ret = av_write_trailer(recorder->ctx);
     if (ret < 0) {
         LOGE("Failed to write trailer to %s", recorder->filename);
-        error = false;
+        error = true;
     }
 
 end:
