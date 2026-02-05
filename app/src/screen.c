@@ -854,7 +854,7 @@ sc_screen_resize_to_pixel_perfect(struct sc_screen *screen) {
                                             content_size.height);
 }
 
-bool
+void
 sc_screen_handle_event(struct sc_screen *screen, const SDL_Event *event) {
     // !video implies !has_video_window
     assert(screen->video || !screen->has_video_window);
@@ -864,28 +864,28 @@ sc_screen_handle_event(struct sc_screen *screen, const SDL_Event *event) {
             if (!ok) {
                 LOGE("Frame update failed\n");
             }
-            return true;
+            return;
         }
         case SDL_EVENT_WINDOW_EXPOSED:
             if (!screen->video || screen->has_video_window) {
                 sc_screen_render(screen, true);
             }
-            return true;
+            return;
         case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
             if (screen->has_video_window) {
                 sc_screen_render(screen, true);
             }
-            return true;
+            return;
         case SDL_EVENT_WINDOW_RESTORED:
             if (screen->has_video_window && is_windowed(screen)) {
                 apply_pending_resize(screen);
                 sc_screen_render(screen, true);
             }
-            return true;
+            return;
         case SDL_EVENT_WINDOW_ENTER_FULLSCREEN:
             LOGD("Switched to fullscreen mode");
             assert(screen->has_video_window);
-            return true;
+            return;
         case SDL_EVENT_WINDOW_LEAVE_FULLSCREEN:
             LOGD("Switched to windowed mode");
             assert(screen->has_video_window);
@@ -893,17 +893,16 @@ sc_screen_handle_event(struct sc_screen *screen, const SDL_Event *event) {
                 apply_pending_resize(screen);
                 sc_screen_render(screen, true);
             }
-            return true;
+            return;
     }
 
     if (sc_screen_is_relative_mode(screen)
             && sc_mouse_capture_handle_event(&screen->mc, event)) {
         // The mouse capture handler consumed the event
-        return true;
+        return;
     }
 
     sc_input_manager_handle_event(&screen->im, event);
-    return true;
 }
 
 struct sc_point

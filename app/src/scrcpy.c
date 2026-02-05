@@ -199,8 +199,8 @@ event_loop(struct scrcpy *s, bool has_screen) {
                 break;
             }
             default:
-                if (has_screen && !sc_screen_handle_event(&s->screen, &event)) {
-                    return SCRCPY_EXIT_FAILURE;
+                if (has_screen) {
+                    sc_screen_handle_event(&s->screen, &event);
                 }
                 break;
         }
