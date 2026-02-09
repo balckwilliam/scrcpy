@@ -3,9 +3,10 @@
 #include <processthreadsapi.h>
 
 #include <assert.h>
+#include <stdlib.h>
 
 #include "util/log.h"
-#include "util/str.h"
+#include "util/strbuf.h"
 
 #define CMD_MAX_LEN 8192
 
