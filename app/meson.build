@@ -76,6 +76,7 @@ conf.set('_GNU_SOURCE', true)
 if host_machine.system() == 'windows'
     windows = import('windows')
     src += [
+        'src/util/command.c',
         'src/sys/win/file.c',
         'src/sys/win/process.c',
         windows.compile_resources('scrcpy-windows.rc'),
@@ -237,6 +238,12 @@ if get_option('buildtype') == 'debug'
             'src/util/str.c',
             'src/util/strbuf.c',
             'src/util/term.c',
+        ]],
+        ['test_command_windows', [
+          'tests/test_command_windows.c',
+          'src/util/command.c',
+          'src/util/str.c',
+          'src/util/strbuf.c',
         ]],
         ['test_control_msg_serialize', [
             'tests/test_control_msg_serialize.c',
