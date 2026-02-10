@@ -3371,7 +3371,7 @@ sc_get_pause_on_exit(int argc, char *argv[]) {
             }
             if (arg[15] != '=') {
                 // Invalid parameter, ignore
-                return SC_PAUSE_ON_EXIT_FALSE;
+                return SC_PAUSE_ON_EXIT_UNDEFINED;
             }
             const char *value = &arg[16];
             if (!strcmp(value, "true")) {
@@ -3380,13 +3380,43 @@ sc_get_pause_on_exit(int argc, char *argv[]) {
             if (!strcmp(value, "if-error")) {
                 return SC_PAUSE_ON_EXIT_IF_ERROR;
             }
-            // Set to false, including when the value is invalid
-            return SC_PAUSE_ON_EXIT_FALSE;
+            if (!strcmp(value, "false")) {
+                return SC_PAUSE_ON_EXIT_FALSE;
+            }
+            return SC_PAUSE_ON_EXIT_UNDEFINED;
         }
     }
 
-    return SC_PAUSE_ON_EXIT_FALSE;
+    return SC_PAUSE_ON_EXIT_UNDEFINED;
 }
+
+#ifdef _WIN32
+/**
+ * Attempt to detect whether the user launched scrcpy by double-clicking
+ * scrcpy.exe in Windows Explorer.
+ *
+ * If so, the console should remain open on error.
+ */
+static bool
+scrcpy_launched_by_double_click(void) {
+    // No console window
+    if (GetConsoleWindow() == NULL) {
+        return false;
+    }
+
+    // Must be interactive
+    if (!_isatty(_fileno(stdin)) || !_isatty(_fileno(stdout))) {
+        return false;
+    }
+
+    // Check how many processes share the console
+    DWORD dummy;
+    DWORD count = GetConsoleProcessList(&dummy, 1);
+
+    // Only this process attached, assume it was started by double-clicking
+    return count == 1;
+}
+#endif
 
 bool
 scrcpy_parse_args(struct scrcpy_cli_args *args, int argc, char *argv[]) {
@@ -3401,11 +3431,22 @@ scrcpy_parse_args(struct scrcpy_cli_args *args, int argc, char *argv[]) {
 
     sc_getopt_adapter_destroy(&adapter);
 
-    if (!ret && args->pause_on_exit == SC_PAUSE_ON_EXIT_FALSE) {
+    if (!ret && args->pause_on_exit == SC_PAUSE_ON_EXIT_UNDEFINED) {
         // Check if "--pause-on-exit" is present in the arguments list, because
         // it must be taken into account even if command line parsing failed
         args->pause_on_exit = sc_get_pause_on_exit(argc, argv);
     }
+
+    if (args->pause_on_exit == SC_PAUSE_ON_EXIT_UNDEFINED) {
+        args->pause_on_exit = SC_PAUSE_ON_EXIT_FALSE;
+#ifdef _WIN32
+        if (scrcpy_launched_by_double_click()) {
+            args->pause_on_exit = SC_PAUSE_ON_EXIT_IF_ERROR;
+        }
+#endif
+    }
+
+    assert(args->pause_on_exit != SC_PAUSE_ON_EXIT_UNDEFINED);
 
     return ret;
 }

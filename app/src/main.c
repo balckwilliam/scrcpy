@@ -39,7 +39,7 @@ main_scrcpy(int argc, char *argv[]) {
         .opts = scrcpy_options_default,
         .help = false,
         .version = false,
-        .pause_on_exit = SC_PAUSE_ON_EXIT_FALSE,
+        .pause_on_exit = SC_PAUSE_ON_EXIT_UNDEFINED,
     };
 
 #ifndef NDEBUG
