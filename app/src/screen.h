@@ -73,6 +73,7 @@ struct sc_screen {
     struct SDL_FRect rect;
     bool has_frame;
     bool has_video_window;
+    bool window_shown;
 
     AVFrame *frame;
 

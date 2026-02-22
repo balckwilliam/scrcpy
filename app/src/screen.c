@@ -345,6 +345,7 @@ sc_screen_init(struct sc_screen *screen,
     screen->resize_pending = false;
     screen->has_frame = false;
     screen->has_video_window = false;
+    screen->window_shown = true;
     screen->paused = false;
     screen->resume_frame = NULL;
     screen->orientation = SC_ORIENTATION_0;
@@ -538,6 +539,7 @@ sc_screen_init(struct sc_screen *screen,
     if (!screen->video) {
         // Show the window immediately
         sc_sdl_show_window(screen->window);
+        screen->window_shown = true;
 
         if (sc_screen_is_relative_mode(screen)) {
             // Capture mouse immediately if video mirroring is disabled
@@ -594,11 +596,13 @@ sc_screen_show_initial_window(struct sc_screen *screen) {
     }
 
     sc_sdl_show_window(screen->window);
+    screen->window_shown = true;
     sc_screen_update_content_rect(screen);
 }
 
 void
 sc_screen_hide_window(struct sc_screen *screen) {
+    screen->window_shown = false;
     sc_sdl_hide_window(screen->window);
 }
 
@@ -933,7 +937,7 @@ sc_screen_handle_event(struct sc_screen *screen, const SDL_Event *event) {
         case SC_EVENT_DEVICE_DISCONNECTED:
             assert(!screen->disconnected);
             screen->disconnected = true;
-            if (!screen->has_video_window) {
+            if (!screen->window_shown) {
                 // No window open
                 return;
             }
@@ -966,7 +970,7 @@ sc_screen_handle_event(struct sc_screen *screen, const SDL_Event *event) {
 
 void
 sc_screen_handle_disconnection(struct sc_screen *screen) {
-    if (!screen->has_video_window) {
+    if (!screen->window_shown) {
         // No window open, quit immediately
         return;
     }
