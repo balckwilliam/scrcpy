@@ -93,4 +93,4 @@ Then just double-click on that file to run it.
 
 To start scrcpy without opening a terminal, double-click `scrcpy-noconsole.vbs`
 (note that errors won't be shown). To pass arguments, edit (a copy of)
-`scrcpy-noconsole.vbs` add and the desired arguments.
+`scrcpy-noconsole.vbs` and add the desired arguments.
