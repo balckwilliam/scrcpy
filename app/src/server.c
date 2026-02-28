@@ -941,6 +941,7 @@ sc_server_configure_tcpip_unknown_address(struct sc_server *server,
 }
 
 #define SC_DIRECT_KEY_MAX_LEN 128
+#define SC_IPV4_ADDR_MAX_LEN 16 // "xxx.xxx.xxx.xxx" + null
 
 static bool
 sc_server_parse_direct_addr(const char *addr, uint32_t *host, uint16_t *port) {
@@ -952,7 +953,7 @@ sc_server_parse_direct_addr(const char *addr, uint32_t *host, uint16_t *port) {
     }
 
     size_t ip_len = colon - addr;
-    char ip[64];
+    char ip[SC_IPV4_ADDR_MAX_LEN];
     if (ip_len >= sizeof(ip)) {
         LOGE("IP address too long: %s", addr);
         return false;
@@ -973,6 +974,34 @@ sc_server_parse_direct_addr(const char *addr, uint32_t *host, uint16_t *port) {
     }
 
     *port = (uint16_t) value;
+    return true;
+}
+
+static bool
+sc_server_send_direct_auth(struct sc_intr *intr, sc_socket socket,
+                           const char *key, size_t key_len) {
+    uint8_t klen = (uint8_t) key_len;
+    if (net_send_all_intr(intr, socket, &klen, 1) != 1) {
+        LOGE("Could not send security key length");
+        return false;
+    }
+    if (net_send_all_intr(intr, socket, key, key_len)
+            != (ssize_t) key_len) {
+        LOGE("Could not send security key");
+        return false;
+    }
+
+    uint8_t auth_response;
+    if (net_recv_all_intr(intr, socket, &auth_response, 1) != 1) {
+        LOGE("Could not read authentication response");
+        return false;
+    }
+
+    if (auth_response != 0) {
+        LOGE("Direct connection authentication failed (wrong key?)");
+        return false;
+    }
+
     return true;
 }
 
@@ -1003,8 +1032,7 @@ sc_server_connect_to_direct(struct sc_server *server,
     sc_socket control_socket = SC_SOCKET_NONE;
 
     // In direct mode, connect to the server port for each needed socket.
-    // For each connection, send the security key first, then read one byte
-    // to confirm authentication.
+    // Each connection authenticates with the security key.
     unsigned attempts = 100;
     sc_tick delay = SC_TICK_FROM_MS(100);
     sc_socket first_socket = connect_to_server(server, attempts, delay,
@@ -1014,28 +1042,9 @@ sc_server_connect_to_direct(struct sc_server *server,
         goto fail;
     }
 
-    // Send the security key (length-prefixed: 1 byte length + key bytes)
-    uint8_t klen = (uint8_t) key_len;
-    if (net_send_all_intr(&server->intr, first_socket, &klen, 1) != 1) {
-        LOGE("Could not send security key length");
-        goto fail;
-    }
-    if (net_send_all_intr(&server->intr, first_socket, key, key_len)
-            != (ssize_t) key_len) {
-        LOGE("Could not send security key");
-        goto fail;
-    }
-
-    // Read authentication response (1 byte: 0 = success)
-    uint8_t auth_response;
-    if (net_recv_all_intr(&server->intr, first_socket, &auth_response, 1)
-            != 1) {
-        LOGE("Could not read authentication response");
-        goto fail;
-    }
-
-    if (auth_response != 0) {
-        LOGE("Direct connection authentication failed (wrong key?)");
+    // Authenticate the first connection
+    if (!sc_server_send_direct_auth(&server->intr, first_socket,
+                                    key, key_len)) {
         goto fail;
     }
 
@@ -1057,6 +1066,11 @@ sc_server_connect_to_direct(struct sc_server *server,
             if (!ok) {
                 goto fail;
             }
+            // Authenticate the audio socket
+            if (!sc_server_send_direct_auth(&server->intr, audio_socket,
+                                            key, key_len)) {
+                goto fail;
+            }
         }
     }
 
@@ -1071,6 +1085,11 @@ sc_server_connect_to_direct(struct sc_server *server,
             bool ok = net_connect_intr(&server->intr, control_socket,
                                        host, port);
             if (!ok) {
+                goto fail;
+            }
+            // Authenticate the control socket
+            if (!sc_server_send_direct_auth(&server->intr, control_socket,
+                                            key, key_len)) {
                 goto fail;
             }
         }
