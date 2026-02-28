@@ -96,12 +96,13 @@ public final class Server {
         boolean video = options.getVideo();
         boolean audio = options.getAudio();
         boolean sendDummyByte = options.getSendDummyByte();
+        int tcpPort = options.getTcpPort();
 
         Workarounds.apply();
 
         List<AsyncProcessor> asyncProcessors = new ArrayList<>();
 
-        DesktopConnection connection = DesktopConnection.open(scid, tunnelForward, video, audio, control, sendDummyByte);
+        DesktopConnection connection = DesktopConnection.open(scid, tunnelForward, video, audio, control, sendDummyByte, tcpPort);
         try {
             if (options.getSendDeviceMeta()) {
                 connection.sendDeviceMeta(Device.getDeviceName());

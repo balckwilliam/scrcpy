@@ -71,6 +71,7 @@ struct sc_server_params {
     bool vd_destroy_content;
     bool vd_system_decorations;
     uint8_t list;
+    const char *direct_connect; // "ip:port" for direct TCP connection without ADB
 };
 
 struct sc_server {
