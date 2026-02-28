@@ -522,21 +522,29 @@ sc_server_init(struct sc_server *server, const struct sc_server_params *params,
     // end of the program
     server->params = *params;
 
-    bool ok = sc_adb_init();
-    if (!ok) {
-        return false;
+    bool direct = !!params->direct_addr;
+
+    if (!direct) {
+        bool ok = sc_adb_init();
+        if (!ok) {
+            return false;
+        }
     }
 
-    ok = sc_mutex_init(&server->mutex);
+    bool ok = sc_mutex_init(&server->mutex);
     if (!ok) {
-        sc_adb_destroy();
+        if (!direct) {
+            sc_adb_destroy();
+        }
         return false;
     }
 
     ok = sc_cond_init(&server->cond_stopped);
     if (!ok) {
         sc_mutex_destroy(&server->mutex);
-        sc_adb_destroy();
+        if (!direct) {
+            sc_adb_destroy();
+        }
         return false;
     }
 
@@ -544,7 +552,9 @@ sc_server_init(struct sc_server *server, const struct sc_server_params *params,
     if (!ok) {
         sc_cond_destroy(&server->cond_stopped);
         sc_mutex_destroy(&server->mutex);
-        sc_adb_destroy();
+        if (!direct) {
+            sc_adb_destroy();
+        }
         return false;
     }
 
@@ -556,7 +566,9 @@ sc_server_init(struct sc_server *server, const struct sc_server_params *params,
     server->audio_socket = SC_SOCKET_NONE;
     server->control_socket = SC_SOCKET_NONE;
 
-    sc_adb_tunnel_init(&server->tunnel);
+    if (!direct) {
+        sc_adb_tunnel_init(&server->tunnel);
+    }
 
     assert(cbs);
     assert(cbs->on_connection_failed);
@@ -928,6 +940,220 @@ sc_server_configure_tcpip_unknown_address(struct sc_server *server,
     return sc_server_connect_to_tcpip(server, ip_port, false);
 }
 
+#define SC_DIRECT_KEY_MAX_LEN 128
+
+static bool
+sc_server_parse_direct_addr(const char *addr, uint32_t *host, uint16_t *port) {
+    // Parse "ip:port" format
+    const char *colon = strrchr(addr, ':');
+    if (!colon) {
+        LOGE("Invalid direct address (expected ip:port): %s", addr);
+        return false;
+    }
+
+    size_t ip_len = colon - addr;
+    char ip[64];
+    if (ip_len >= sizeof(ip)) {
+        LOGE("IP address too long: %s", addr);
+        return false;
+    }
+    memcpy(ip, addr, ip_len);
+    ip[ip_len] = '\0';
+
+    if (!net_parse_ipv4(ip, host)) {
+        return false;
+    }
+
+    const char *port_str = colon + 1;
+    char *endptr;
+    long value = strtol(port_str, &endptr, 10);
+    if (*endptr != '\0' || value < 1 || value > 65535) {
+        LOGE("Invalid port in direct address: %s", port_str);
+        return false;
+    }
+
+    *port = (uint16_t) value;
+    return true;
+}
+
+static bool
+sc_server_connect_to_direct(struct sc_server *server,
+                            struct sc_server_info *info) {
+    const struct sc_server_params *params = &server->params;
+
+    uint32_t host;
+    uint16_t port;
+    if (!sc_server_parse_direct_addr(params->direct_addr, &host, &port)) {
+        return false;
+    }
+
+    bool video = params->video;
+    bool audio = params->audio;
+    bool control = params->control;
+
+    const char *key = params->direct_key;
+    assert(key);
+    size_t key_len = strlen(key);
+    assert(key_len > 0 && key_len <= SC_DIRECT_KEY_MAX_LEN);
+
+    LOGI("Connecting directly to %s...", params->direct_addr);
+
+    sc_socket video_socket = SC_SOCKET_NONE;
+    sc_socket audio_socket = SC_SOCKET_NONE;
+    sc_socket control_socket = SC_SOCKET_NONE;
+
+    // In direct mode, connect to the server port for each needed socket.
+    // For each connection, send the security key first, then read one byte
+    // to confirm authentication.
+    unsigned attempts = 100;
+    sc_tick delay = SC_TICK_FROM_MS(100);
+    sc_socket first_socket = connect_to_server(server, attempts, delay,
+                                               host, port);
+    if (first_socket == SC_SOCKET_NONE) {
+        LOGE("Could not connect to %s", params->direct_addr);
+        goto fail;
+    }
+
+    // Send the security key (length-prefixed: 1 byte length + key bytes)
+    uint8_t klen = (uint8_t) key_len;
+    if (net_send_all_intr(&server->intr, first_socket, &klen, 1) != 1) {
+        LOGE("Could not send security key length");
+        goto fail;
+    }
+    if (net_send_all_intr(&server->intr, first_socket, key, key_len)
+            != (ssize_t) key_len) {
+        LOGE("Could not send security key");
+        goto fail;
+    }
+
+    // Read authentication response (1 byte: 0 = success)
+    uint8_t auth_response;
+    if (net_recv_all_intr(&server->intr, first_socket, &auth_response, 1)
+            != 1) {
+        LOGE("Could not read authentication response");
+        goto fail;
+    }
+
+    if (auth_response != 0) {
+        LOGE("Direct connection authentication failed (wrong key?)");
+        goto fail;
+    }
+
+    LOGI("Direct connection authenticated successfully");
+
+    if (video) {
+        video_socket = first_socket;
+    }
+
+    if (audio) {
+        if (!video) {
+            audio_socket = first_socket;
+        } else {
+            audio_socket = net_socket();
+            if (audio_socket == SC_SOCKET_NONE) {
+                goto fail;
+            }
+            bool ok = net_connect_intr(&server->intr, audio_socket, host, port);
+            if (!ok) {
+                goto fail;
+            }
+        }
+    }
+
+    if (control) {
+        if (!video && !audio) {
+            control_socket = first_socket;
+        } else {
+            control_socket = net_socket();
+            if (control_socket == SC_SOCKET_NONE) {
+                goto fail;
+            }
+            bool ok = net_connect_intr(&server->intr, control_socket,
+                                       host, port);
+            if (!ok) {
+                goto fail;
+            }
+        }
+    }
+
+    if (control_socket != SC_SOCKET_NONE) {
+        bool ok = net_set_tcp_nodelay(control_socket, true);
+        (void) ok;
+    }
+
+    sc_socket info_socket = video ? video_socket
+                          : audio ? audio_socket
+                                  : control_socket;
+
+    bool ok = device_read_info(&server->intr, info_socket, info);
+    if (!ok) {
+        goto fail;
+    }
+
+    assert(!video || video_socket != SC_SOCKET_NONE);
+    assert(!audio || audio_socket != SC_SOCKET_NONE);
+    assert(!control || control_socket != SC_SOCKET_NONE);
+
+    server->video_socket = video_socket;
+    server->audio_socket = audio_socket;
+    server->control_socket = control_socket;
+
+    LOGI("Direct connection established to %s", params->direct_addr);
+    return true;
+
+fail:
+    if (video_socket != SC_SOCKET_NONE) {
+        if (!net_close(video_socket)) {
+            LOGW("Could not close video socket");
+        }
+    }
+    if (audio_socket != SC_SOCKET_NONE) {
+        if (!net_close(audio_socket)) {
+            LOGW("Could not close audio socket");
+        }
+    }
+    if (control_socket != SC_SOCKET_NONE) {
+        if (!net_close(control_socket)) {
+            LOGW("Could not close control socket");
+        }
+    }
+    return false;
+}
+
+static int
+run_server_direct(void *data) {
+    struct sc_server *server = data;
+
+    bool ok = sc_server_connect_to_direct(server, &server->info);
+    if (!ok) {
+        server->cbs->on_connection_failed(server, server->cbs_userdata);
+        return -1;
+    }
+
+    // Now connected
+    server->cbs->on_connected(server, server->cbs_userdata);
+
+    // Wait for server_stop()
+    sc_mutex_lock(&server->mutex);
+    while (!server->stopped) {
+        sc_cond_wait(&server->cond_stopped, &server->mutex);
+    }
+    sc_mutex_unlock(&server->mutex);
+
+    // Interrupt sockets to wake up socket blocking calls
+    if (server->video_socket != SC_SOCKET_NONE) {
+        net_interrupt(server->video_socket);
+    }
+    if (server->audio_socket != SC_SOCKET_NONE) {
+        net_interrupt(server->audio_socket);
+    }
+    if (server->control_socket != SC_SOCKET_NONE) {
+        net_interrupt(server->control_socket);
+    }
+
+    return 0;
+}
+
 static void
 sc_server_kill_adb_if_requested(struct sc_server *server) {
     if (server->params.kill_adb_on_close) {
@@ -1154,8 +1380,10 @@ error_connection_failed:
 
 bool
 sc_server_start(struct sc_server *server) {
+    sc_thread_fn *fn = server->params.direct_addr ? run_server_direct
+                                                  : run_server;
     bool ok =
-        sc_thread_create(&server->thread, run_server, "scrcpy-server", server);
+        sc_thread_create(&server->thread, fn, "scrcpy-server", server);
     if (!ok) {
         LOGE("Could not create server thread");
         return false;
@@ -1196,5 +1424,7 @@ sc_server_destroy(struct sc_server *server) {
     sc_cond_destroy(&server->cond_stopped);
     sc_mutex_destroy(&server->mutex);
 
-    sc_adb_destroy();
+    if (!server->params.direct_addr) {
+        sc_adb_destroy();
+    }
 }

@@ -1,4 +1,5 @@
 build/
+builddir/
 /dist/
 /build-*/
 /build_*/

@@ -114,6 +114,8 @@ enum {
     OPT_NO_VD_SYSTEM_DECORATIONS,
     OPT_NO_VD_DESTROY_CONTENT,
     OPT_DISPLAY_IME_POLICY,
+    OPT_DIRECT,
+    OPT_DIRECT_KEY,
 };
 
 struct sc_option {
@@ -363,6 +365,27 @@ static const struct sc_option options[] = {
         .longopt_id = OPT_DISABLE_SCREENSAVER,
         .longopt = "disable-screensaver",
         .text = "Disable screensaver while scrcpy is running.",
+    },
+    {
+        .longopt_id = OPT_DIRECT,
+        .longopt = "direct",
+        .argdesc = "ip:port",
+        .text = "Connect directly to the scrcpy server at the given "
+                "ip:port, bypassing ADB entirely.\n"
+                "The server must already be running and listening on the "
+                "device. No USB debugging is required.\n"
+                "A security key should be configured via --direct-key for "
+                "authentication.",
+    },
+    {
+        .longopt_id = OPT_DIRECT_KEY,
+        .longopt = "direct-key",
+        .argdesc = "key",
+        .text = "Set the security key for direct connection "
+                "authentication.\n"
+                "The key must match the one configured on the server side. "
+                "Maximum 128 characters.\n"
+                "Only used with --direct.",
     },
     {
         // deprecated
@@ -2615,6 +2638,12 @@ parse_args_with_getopt(struct scrcpy_cli_args *args, int argc, char *argv[],
             case OPT_DISABLE_SCREENSAVER:
                 opts->disable_screensaver = true;
                 break;
+            case OPT_DIRECT:
+                opts->direct_addr = optarg;
+                break;
+            case OPT_DIRECT_KEY:
+                opts->direct_key = optarg;
+                break;
             case OPT_SHORTCUT_MOD:
                 if (!parse_shortcut_mods(optarg, &opts->shortcut_mods)) {
                     return false;
@@ -2835,6 +2864,31 @@ parse_args_with_getopt(struct scrcpy_cli_args *args, int argc, char *argv[],
 
     // If a TCP/IP address is provided, then tcpip must be enabled
     assert(opts->tcpip || !opts->tcpip_dst);
+
+    if (opts->direct_addr) {
+        if (opts->serial || opts->tcpip || opts->select_usb
+                || opts->select_tcpip) {
+            LOGE("--direct is incompatible with device selection options "
+                 "(--serial, --tcpip, --select-usb, --select-tcpip)");
+            return false;
+        }
+
+        if (!opts->direct_key) {
+            LOGE("--direct requires --direct-key for secure authentication");
+            return false;
+        }
+
+        if (strlen(opts->direct_key) == 0
+                || strlen(opts->direct_key) > 128) {
+            LOGE("--direct-key must be between 1 and 128 characters");
+            return false;
+        }
+    }
+
+    if (opts->direct_key && !opts->direct_addr) {
+        LOGE("--direct-key requires --direct");
+        return false;
+    }
 
     unsigned selectors = !!opts->serial
                        + !!opts->tcpip_dst

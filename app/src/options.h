@@ -327,6 +327,8 @@ struct scrcpy_options {
     const char *start_app;
     bool vd_destroy_content;
     bool vd_system_decorations;
+    const char *direct_addr; // ip:port for direct connection (no ADB)
+    const char *direct_key; // security key for direct connection
 };
 
 extern const struct scrcpy_options scrcpy_options_default;

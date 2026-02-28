@@ -149,6 +149,63 @@ static void test_parse_shortcut_mods(void) {
     assert(!ok);
 }
 
+static void test_direct_connect(void) {
+    struct scrcpy_cli_args args = {
+        .opts = scrcpy_options_default,
+        .help = false,
+        .version = false,
+    };
+
+    char *argv[] = {
+        "scrcpy",
+        "--direct", "192.168.1.100:27183",
+        "--direct-key", "mysecretkey",
+        "--no-playback",
+        "--record", "file.mp4",
+    };
+
+    bool ok = scrcpy_parse_args(&args, ARRAY_LEN(argv), argv);
+    assert(ok);
+
+    const struct scrcpy_options *opts = &args.opts;
+    assert(!strcmp(opts->direct_addr, "192.168.1.100:27183"));
+    assert(!strcmp(opts->direct_key, "mysecretkey"));
+}
+
+static void test_direct_connect_requires_key(void) {
+    struct scrcpy_cli_args args = {
+        .opts = scrcpy_options_default,
+        .help = false,
+        .version = false,
+    };
+
+    char *argv[] = {
+        "scrcpy",
+        "--direct", "192.168.1.100:27183",
+    };
+
+    bool ok = scrcpy_parse_args(&args, ARRAY_LEN(argv), argv);
+    // Should fail because --direct-key is required
+    assert(!ok);
+}
+
+static void test_direct_key_without_direct(void) {
+    struct scrcpy_cli_args args = {
+        .opts = scrcpy_options_default,
+        .help = false,
+        .version = false,
+    };
+
+    char *argv[] = {
+        "scrcpy",
+        "--direct-key", "mykey",
+    };
+
+    bool ok = scrcpy_parse_args(&args, ARRAY_LEN(argv), argv);
+    // Should fail because --direct is required with --direct-key
+    assert(!ok);
+}
+
 int main(int argc, char *argv[]) {
     (void) argc;
     (void) argv;
@@ -158,5 +215,8 @@ int main(int argc, char *argv[]) {
     test_options();
     test_options2();
     test_parse_shortcut_mods();
+    test_direct_connect();
+    test_direct_connect_requires_key();
+    test_direct_key_without_direct();
     return 0;
 }
