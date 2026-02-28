@@ -1,5 +1,6 @@
 build/
 builddir/
+_codeql_detected_source_root
 /dist/
 /build-*/
 /build_*/
