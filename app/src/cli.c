@@ -114,6 +114,7 @@ enum {
     OPT_NO_VD_SYSTEM_DECORATIONS,
     OPT_NO_VD_DESTROY_CONTENT,
     OPT_DISPLAY_IME_POLICY,
+    OPT_DIRECT_CONNECT,
 };
 
 struct sc_option {
@@ -914,6 +915,17 @@ static const struct sc_option options[] = {
                 "connected over USB), enables TCP/IP mode, then connects to "
                 "this address before starting.\n"
                 "Prefix the address with a '+' to force a reconnection.",
+    },
+    {
+        .longopt_id = OPT_DIRECT_CONNECT,
+        .longopt = "direct-connect",
+        .argdesc = "ip:port",
+        .text = "Connect directly to the scrcpy server running on the device "
+                "via TCP without ADB.\n"
+                "The scrcpy server must be started manually on the device "
+                "with tcp_port=<port> and tunnel_forward=true.\n"
+                "Example: --direct-connect=192.168.1.100:27183\n"
+                "This option skips all ADB steps (push, start, tunnel).",
     },
     {
         .longopt_id = OPT_TIME_LIMIT,
@@ -2646,6 +2658,9 @@ parse_args_with_getopt(struct scrcpy_cli_args *args, int argc, char *argv[],
                 opts->tcpip = true;
                 opts->tcpip_dst = optarg;
                 break;
+            case OPT_DIRECT_CONNECT:
+                opts->direct_connect = optarg;
+                break;
             case OPT_NO_DOWNSIZE_ON_ERROR:
                 opts->downsize_on_error = false;
                 break;
@@ -2835,6 +2850,19 @@ parse_args_with_getopt(struct scrcpy_cli_args *args, int argc, char *argv[],
 
     // If a TCP/IP address is provided, then tcpip must be enabled
     assert(opts->tcpip || !opts->tcpip_dst);
+
+    if (opts->direct_connect) {
+        // Validate that ip:port format contains a colon (port separator)
+        if (!strchr(opts->direct_connect, ':')) {
+            LOGE("--direct-connect requires an ip:port argument (e.g. 192.168.1.1:27183)");
+            return false;
+        }
+        // Direct connect is incompatible with ADB-specific selectors
+        if (opts->serial || opts->tcpip || opts->tcpip_dst || opts->select_usb || opts->select_tcpip) {
+            LOGE("--direct-connect cannot be combined with ADB device selectors");
+            return false;
+        }
+    }
 
     unsigned selectors = !!opts->serial
                        + !!opts->tcpip_dst

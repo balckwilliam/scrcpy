@@ -23,6 +23,10 @@
 #define SC_ADB_PORT_DEFAULT 5555
 #define SC_SOCKET_NAME_PREFIX "scrcpy_"
 
+// Retry parameters for connecting to the server
+#define SC_SERVER_CONNECT_ATTEMPTS 100
+#define SC_SERVER_CONNECT_DELAY_MS 100
+
 static char *
 get_server_path(void) {
     char *server_path = sc_get_env("SCRCPY_SERVER_PATH");
@@ -522,21 +526,29 @@ sc_server_init(struct sc_server *server, const struct sc_server_params *params,
     // end of the program
     server->params = *params;
 
-    bool ok = sc_adb_init();
-    if (!ok) {
-        return false;
+    bool direct = params->direct_connect != NULL;
+
+    if (!direct) {
+        bool ok = sc_adb_init();
+        if (!ok) {
+            return false;
+        }
     }
 
-    ok = sc_mutex_init(&server->mutex);
+    bool ok = sc_mutex_init(&server->mutex);
     if (!ok) {
-        sc_adb_destroy();
+        if (!direct) {
+            sc_adb_destroy();
+        }
         return false;
     }
 
     ok = sc_cond_init(&server->cond_stopped);
     if (!ok) {
         sc_mutex_destroy(&server->mutex);
-        sc_adb_destroy();
+        if (!direct) {
+            sc_adb_destroy();
+        }
         return false;
     }
 
@@ -544,7 +556,9 @@ sc_server_init(struct sc_server *server, const struct sc_server_params *params,
     if (!ok) {
         sc_cond_destroy(&server->cond_stopped);
         sc_mutex_destroy(&server->mutex);
-        sc_adb_destroy();
+        if (!direct) {
+            sc_adb_destroy();
+        }
         return false;
     }
 
@@ -636,8 +650,8 @@ sc_server_connect_to(struct sc_server *server, struct sc_server_info *info) {
             tunnel_port = tunnel->local_port;
         }
 
-        unsigned attempts = 100;
-        sc_tick delay = SC_TICK_FROM_MS(100);
+        unsigned attempts = SC_SERVER_CONNECT_ATTEMPTS;
+        sc_tick delay = SC_TICK_FROM_MS(SC_SERVER_CONNECT_DELAY_MS);
         sc_socket first_socket = connect_to_server(server, attempts, delay,
                                                    tunnel_host, tunnel_port);
         if (first_socket == SC_SOCKET_NONE) {
@@ -738,6 +752,150 @@ fail:
                             server->device_socket_name);
     }
 
+    return false;
+}
+
+/**
+ * Connect directly to the scrcpy server via TCP without ADB tunneling.
+ * The server must be started independently on the device with tcp_port=<port>.
+ *
+ * `direct_connect` must be in "ip:port" format.
+ */
+static bool
+sc_server_connect_to_direct(struct sc_server *server,
+                             struct sc_server_info *info) {
+    const struct sc_server_params *params = &server->params;
+    assert(params->direct_connect);
+
+    const char *addr = params->direct_connect;
+    // Find the last ':' to separate ip from port
+    const char *colon = strrchr(addr, ':');
+    if (!colon || colon == addr) {
+        LOGE("Invalid --direct-connect address (expected ip:port): %s", addr);
+        return false;
+    }
+
+    // Parse IP
+    size_t ip_len = (size_t) (colon - addr);
+    char *ip_str = malloc(ip_len + 1);
+    if (!ip_str) {
+        LOG_OOM();
+        return false;
+    }
+    memcpy(ip_str, addr, ip_len);
+    ip_str[ip_len] = '\0';
+
+    uint32_t host;
+    if (!net_parse_ipv4(ip_str, &host)) {
+        LOGE("Invalid IP address in --direct-connect: %s", ip_str);
+        free(ip_str);
+        return false;
+    }
+    free(ip_str);
+
+    // Parse port
+    long port_val;
+    if (!sc_str_parse_integer(colon + 1, &port_val) ||
+            port_val <= 0 || port_val > 0xFFFF) {
+        LOGE("Invalid port in --direct-connect: %s", colon + 1);
+        return false;
+    }
+    uint16_t port = (uint16_t) port_val;
+
+    bool video = params->video;
+    bool audio = params->audio;
+    bool control = params->control;
+
+    sc_socket video_socket = SC_SOCKET_NONE;
+    sc_socket audio_socket = SC_SOCKET_NONE;
+    sc_socket control_socket = SC_SOCKET_NONE;
+
+    // Connect to the first stream with retry (server may need a moment)
+    unsigned attempts = SC_SERVER_CONNECT_ATTEMPTS;
+    sc_tick delay = SC_TICK_FROM_MS(SC_SERVER_CONNECT_DELAY_MS);
+    sc_socket first_socket =
+        connect_to_server(server, attempts, delay, host, port);
+    if (first_socket == SC_SOCKET_NONE) {
+        goto fail;
+    }
+
+    if (video) {
+        video_socket = first_socket;
+    }
+
+    if (audio) {
+        if (!video) {
+            audio_socket = first_socket;
+        } else {
+            audio_socket = net_socket();
+            if (audio_socket == SC_SOCKET_NONE) {
+                goto fail;
+            }
+            bool ok =
+                net_connect_intr(&server->intr, audio_socket, host, port);
+            if (!ok) {
+                goto fail;
+            }
+        }
+    }
+
+    if (control) {
+        if (!video && !audio) {
+            control_socket = first_socket;
+        } else {
+            control_socket = net_socket();
+            if (control_socket == SC_SOCKET_NONE) {
+                goto fail;
+            }
+            bool ok =
+                net_connect_intr(&server->intr, control_socket, host, port);
+            if (!ok) {
+                goto fail;
+            }
+        }
+    }
+
+    if (control_socket != SC_SOCKET_NONE) {
+        bool ok = net_set_tcp_nodelay(control_socket, true);
+        (void) ok;
+    }
+
+    {
+        sc_socket first = video ? video_socket
+                        : audio ? audio_socket
+                                : control_socket;
+        bool ok = device_read_info(&server->intr, first, info);
+        if (!ok) {
+            goto fail;
+        }
+    }
+
+    assert(!video || video_socket != SC_SOCKET_NONE);
+    assert(!audio || audio_socket != SC_SOCKET_NONE);
+    assert(!control || control_socket != SC_SOCKET_NONE);
+
+    server->video_socket = video_socket;
+    server->audio_socket = audio_socket;
+    server->control_socket = control_socket;
+
+    return true;
+
+fail:
+    if (video_socket != SC_SOCKET_NONE) {
+        if (!net_close(video_socket)) {
+            LOGW("Could not close video socket");
+        }
+    }
+    if (audio_socket != SC_SOCKET_NONE) {
+        if (!net_close(audio_socket)) {
+            LOGW("Could not close audio socket");
+        }
+    }
+    if (control_socket != SC_SOCKET_NONE) {
+        if (!net_close(control_socket)) {
+            LOGW("Could not close control socket");
+        }
+    }
     return false;
 }
 
@@ -942,6 +1100,37 @@ run_server(void *data) {
     struct sc_server *server = data;
 
     const struct sc_server_params *params = &server->params;
+
+    // Direct connect mode: bypass ADB entirely
+    if (params->direct_connect) {
+        LOGI("Direct connect mode: connecting to %s", params->direct_connect);
+        bool ok = sc_server_connect_to_direct(server, &server->info);
+        if (!ok) {
+            goto error_connection_failed;
+        }
+
+        // Now connected
+        server->cbs->on_connected(server, server->cbs_userdata);
+
+        // Wait for server_stop()
+        sc_mutex_lock(&server->mutex);
+        while (!server->stopped) {
+            sc_cond_wait(&server->cond_stopped, &server->mutex);
+        }
+        sc_mutex_unlock(&server->mutex);
+
+        if (server->video_socket != SC_SOCKET_NONE) {
+            net_interrupt(server->video_socket);
+        }
+        if (server->audio_socket != SC_SOCKET_NONE) {
+            net_interrupt(server->audio_socket);
+        }
+        if (server->control_socket != SC_SOCKET_NONE) {
+            net_interrupt(server->control_socket);
+        }
+
+        return 0;
+    }
 
     // Execute "adb start-server" before "adb devices" so that daemon starting
     // output/errors is correctly printed in the console ("adb devices" output
@@ -1196,5 +1385,7 @@ sc_server_destroy(struct sc_server *server) {
     sc_cond_destroy(&server->cond_stopped);
     sc_mutex_destroy(&server->mutex);
 
-    sc_adb_destroy();
+    if (!server->params.direct_connect) {
+        sc_adb_destroy();
+    }
 }

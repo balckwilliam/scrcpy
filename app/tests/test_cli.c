@@ -149,6 +149,45 @@ static void test_parse_shortcut_mods(void) {
     assert(!ok);
 }
 
+static void test_direct_connect(void) {
+    struct scrcpy_cli_args args = {
+        .opts = scrcpy_options_default,
+        .help = false,
+        .version = false,
+    };
+
+    char *argv[] = {
+        "scrcpy",
+        "--direct-connect=192.168.1.100:27183",
+        "--no-audio",
+    };
+
+    bool ok = scrcpy_parse_args(&args, ARRAY_LEN(argv), argv);
+    assert(ok);
+
+    const struct scrcpy_options *opts = &args.opts;
+    assert(opts->direct_connect);
+    assert(!strcmp(opts->direct_connect, "192.168.1.100:27183"));
+}
+
+static void test_direct_connect_invalid(void) {
+    struct scrcpy_cli_args args = {
+        .opts = scrcpy_options_default,
+        .help = false,
+        .version = false,
+    };
+
+    // Missing port separator - should fail validation
+    char *argv[] = {
+        "scrcpy",
+        "--direct-connect=192.168.1.100",
+        "--no-audio",
+    };
+
+    bool ok = scrcpy_parse_args(&args, ARRAY_LEN(argv), argv);
+    assert(!ok);
+}
+
 int main(int argc, char *argv[]) {
     (void) argc;
     (void) argv;
@@ -158,5 +197,7 @@ int main(int argc, char *argv[]) {
     test_options();
     test_options2();
     test_parse_shortcut_mods();
+    test_direct_connect();
+    test_direct_connect_invalid();
     return 0;
 }
